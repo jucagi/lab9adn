@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<!--
+=====================================================================================
+  LABORATORIO VIRTUAL GAMIFICADO: "MISIÓN HELIX-9 · ADN vs ARN"
+  Ciencias Naturales y Educación Ambiental · Grado 9.º
+=====================================================================================
+
+  GUÍA DOCENTE (léase antes de usar en clase)
+  -------------------------------------------
+  Propósito de aprendizaje:
+    El estudiante diferencia estructural y funcionalmente el ADN y el ARN a partir de:
+      1. El azúcar (pentosa): desoxirribosa (ADN) vs. ribosa (ARN, con –OH en el carbono 2′).
+      2. Las bases nitrogenadas: A, G, C comunes; T exclusiva del ADN; U exclusiva del ARN.
+      3. El número de hebras: bicatenario antiparalelo (ADN) vs. monocatenario (ARN).
+      4. La complementariedad: A–T / A–U (2 puentes de H) y G–C (3 puentes de H).
+      5. La función y ubicación: almacenamiento de información (núcleo, mitocondria,
+         cloroplasto) vs. expresión de la información (transcripción en el núcleo y
+         traducción en ribosomas del citoplasma).
+
+  Secuencia didáctica sugerida (2 sesiones de 55 min aprox.):
+    · Sesión 1: Narrativa + Laboratorio libre (exploración/descubrimiento) + Nivel 1.
+    · Sesión 2: Nivel 2 (transcripción) + Nivel 3 (mutaciones) + socialización de insignias.
+    · Cierre: pida a los estudiantes que expliquen con sus palabras UNA retroalimentación
+      que les haya hecho cambiar de idea (metacognición).
+
+  Estructura del recurso:
+    · Panel introductorio (diálogo modal) con la narrativa del "Bio-Ingeniero Genómico".
+    · Pestaña "Laboratorio": sandbox de construcción molecular con validación científica.
+    · Pestañas "Nivel 1/2/3": retos secuenciales (se desbloquean en orden; ver CONFIG).
+    · Pestaña "Insignias": logros de maestría.
+    · Barra superior: puntaje, rango y progreso global (19 tareas en total).
+
+  Personalización rápida (objeto CONFIG en el script):
+    · lockLevels: false  → todos los niveles abiertos desde el inicio (útil para repasos).
+    · maxLabLength       → longitud máxima de la hebra en el laboratorio.
+    · postMessageToParent: true → envía {score, progress} a la ventana padre (LMS que
+      lo soporten mediante iframe). No transmite datos personales.
+    · Los retos están en los arreglos L1_ROUNDS, L2_ROUNDS y L3_CASES: el docente puede
+      añadir o modificar casos siguiendo el mismo formato.
+
+  Integración en LMS (Moodle, Classroom, Canvas, Teams…):
+    · Subir este único archivo index.html como "Archivo/Recurso" o incrustarlo en un iframe:
+      <iframe src="index.html" title="Laboratorio ADN vs ARN" width="100%" height="900"></iframe>
+    · El progreso se guarda SOLO en el navegador del estudiante (localStorage). Si el
+      navegador lo bloquea, el recurso funciona igual, pero sin guardar progreso.
+
+  Notas técnicas y de seguridad:
+    · Única dependencia externa declarada: Tailwind CSS (CDN oficial, versión fijada).
+    · JavaScript nativo (Vanilla JS), sin eval(), sin cookies, sin peticiones de red,
+      sin recolección de datos. El nombre del estudiante solo se usa en pantalla.
+    · Accesibilidad: navegación completa por teclado, regiones aria-live para la
+      retroalimentación, información NO codificada solo por color (cada base muestra su
+      letra), respeto a "prefers-reduced-motion", contraste alto.
+=====================================================================================
+-->
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Laboratorio virtual gamificado para diferenciar ADN y ARN: construcción molecular, transcripción y diagnóstico de mutaciones. Grado 9.º">
+  <title>Misión Helix-9 · Laboratorio ADN vs ARN</title>
+
+  <!-- Única dependencia externa: Tailwind CSS (Play CDN, versión fijada). -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+
+  <style>
+    /* ---------- Estilos propios mínimos (complementan a Tailwind) ---------- */
+    :root { color-scheme: dark; }
+    body { background: #020617; color: #e2e8f0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    /* Foco visible y consistente para navegación por teclado */
+    :focus-visible { outline: 3px solid #22d3ee; outline-offset: 2px; border-radius: 6px; }
+    /* Nucleótidos interactivos dentro del SVG */
+    .nt { cursor: pointer; }
+    .nt:focus { outline: none; }
+    .nt:focus-visible rect.base, .nt:hover rect.base { stroke: #ffffff; stroke-width: 3; }
+    .nt.static { cursor: default; }
+    .nt.static:hover rect.base { stroke: none; }
+    /* Animaciones (desactivadas si el usuario prefiere menos movimiento) */
+    @keyframes pulseSlot { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+    .slot-next { animation: pulseSlot 1.2s ease-in-out infinite; }
+    @keyframes popIn { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
+    .pop { animation: popIn .25s ease-out; }
+    @keyframes helix { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+    .spin-slow { animation: helix 18s linear infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+    dialog::backdrop { background: rgba(2, 6, 23, .85); backdrop-filter: blur(3px); }
+    .tile { display:inline-flex; align-items:center; justify-content:center; width:1.9rem; height:2.1rem;
+            border-radius:.4rem; font-weight:800; color:#fff; font-family: ui-monospace, monospace; }
+    .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <a href="#contenido" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 bg-cyan-400 text-slate-900 px-3 py-2 rounded font-bold">Saltar al contenido</a>
+
+  <!-- =========================================================================
+       ENCABEZADO / HUD DE JUEGO: puntaje, rango, progreso e insignias
+       ========================================================================= -->
+  <header class="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="text-3xl spin-slow inline-block" aria-hidden="true">🧬</span>
+        <div class="min-w-0">
+          <h1 class="text-lg sm:text-xl font-extrabold tracking-tight leading-tight">Misión Helix-9</h1>
+          <p class="text-xs text-slate-400 truncate">Laboratorio virtual ADN vs ARN · <span id="hud-name">Bio-Ingeniero/a en entrenamiento</span></p>
+        </div>
+      </div>
+
+      <div class="flex flex-1 flex-wrap items-center gap-4 justify-end">
+        <div class="text-center">
+          <p class="text-[11px] uppercase tracking-wider text-slate-400">Puntaje</p>
+          <p class="text-xl font-black text-amber-300" id="hud-score" aria-live="polite">0</p>
+        </div>
+        <div class="text-center">
+          <p class="text-[11px] uppercase tracking-wider text-slate-400">Rango</p>
+          <p class="text-sm font-bold text-cyan-300" id="hud-rank">Aprendiz</p>
+        </div>
+        <div class="text-center">
+          <p class="text-[11px] uppercase tracking-wider text-slate-400">Insignias</p>
+          <p class="text-sm font-bold text-emerald-300"><span id="hud-badges">0</span>/<span id="hud-badges-total">8</span></p>
+        </div>
+        <div class="w-full sm:w-56">
+          <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+            <span id="progress-label">Progreso de la misión</span><span id="hud-progress-text">0%</span>
+          </div>
+          <div class="h-3 rounded-full bg-slate-800 overflow-hidden" role="progressbar" aria-labelledby="progress-label"
+               aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="hud-progress">
+            <div id="hud-progress-bar" class="h-full w-0 bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300 transition-all duration-500"></div>
+          </div>
+        </div>
+        <button id="btn-briefing" type="button" class="text-xs px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800">📡 Briefing</button>
+      </div>
+    </div>
+
+    <!-- Navegación por pestañas (patrón ARIA "tabs", flechas izquierda/derecha) -->
+    <nav class="mx-auto max-w-7xl px-4 pb-2" aria-label="Secciones del laboratorio">
+      <div role="tablist" aria-label="Módulos" class="flex gap-1 overflow-x-auto" id="tablist">
+        <button role="tab" id="tab-lab" aria-controls="panel-lab" aria-selected="true" class="tab-btn">🧪 Laboratorio</button>
+        <button role="tab" id="tab-l1" aria-controls="panel-l1" aria-selected="false" tabindex="-1" class="tab-btn">🔍 Nivel 1</button>
+        <button role="tab" id="tab-l2" aria-controls="panel-l2" aria-selected="false" tabindex="-1" class="tab-btn">⚙️ Nivel 2</button>
+        <button role="tab" id="tab-l3" aria-controls="panel-l3" aria-selected="false" tabindex="-1" class="tab-btn">🩺 Nivel 3</button>
+        <button role="tab" id="tab-badges" aria-controls="panel-badges" aria-selected="false" tabindex="-1" class="tab-btn">🏅 Insignias</button>
+      </div>
+    </nav>
+  </header>
+
+  <main id="contenido" class="mx-auto max-w-7xl px-4 py-6">
+
+    <!-- =======================================================================
+         SECCIÓN A · LABORATORIO DE CONSTRUCCIÓN MOLECULAR (sandbox)
+         Pedagogía: aprendizaje por descubrimiento. El estudiante manipula las
+         variables (azúcar, bases, hebras) y observa de inmediato si la molécula
+         resultante es ADN, ARN o una "quimera" químicamente imposible.
+         ======================================================================= -->
+    <section role="tabpanel" id="panel-lab" aria-labelledby="tab-lab" tabindex="0">
+      <div class="mb-4">
+        <h2 class="text-2xl font-extrabold">Laboratorio de construcción molecular</h2>
+        <p class="text-slate-300 text-sm max-w-3xl">Elige el azúcar, el número de hebras y añade nucleótidos. El sintetizador te dirá qué molécula construiste y si respeta las reglas químicas. <strong>Consejo:</strong> en doble hebra, toca una base de la hebra inferior para cambiarla y poner a prueba la complementariedad.</p>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[340px_1fr]">
+        <!-- Controles -->
+        <div class="space-y-4">
+          <fieldset class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <legend class="px-2 text-sm font-bold text-cyan-300">1 · Azúcar (pentosa)</legend>
+            <div class="grid grid-cols-2 gap-2" id="sugar-group">
+              <label class="flex cursor-pointer flex-col rounded-xl border border-slate-700 p-3 has-[:checked]:border-cyan-400 has-[:checked]:bg-cyan-950">
+                <input type="radio" name="sugar" value="desoxirribosa" class="sr-only" checked>
+                <span class="font-bold">Desoxirribosa</span>
+                <span class="text-xs text-slate-400">C2′ con –H</span>
+              </label>
+              <label class="flex cursor-pointer flex-col rounded-xl border border-slate-700 p-3 has-[:checked]:border-pink-400 has-[:checked]:bg-pink-950">
+                <input type="radio" name="sugar" value="ribosa" class="sr-only">
+                <span class="font-bold">Ribosa</span>
+                <span class="text-xs text-slate-400">C2′ con –OH</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <legend class="px-2 text-sm font-bold text-cyan-300">2 · Número de hebras</legend>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex cursor-pointer flex-col rounded-xl border border-slate-700 p-3 has-[:checked]:border-cyan-400 has-[:checked]:bg-cyan-950">
+                <input type="radio" name="strands" value="1" class="sr-only">
+                <span class="font-bold">1 hebra</span>
+                <span class="text-xs text-slate-400">Monocatenaria</span>
+              </label>
+              <label class="flex cursor-pointer flex-col rounded-xl border border-slate-700 p-3 has-[:checked]:border-cyan-400 has-[:checked]:bg-cyan-950">
+                <input type="radio" name="strands" value="2" class="sr-only" checked>
+                <span class="font-bold">2 hebras</span>
+                <span class="text-xs text-slate-400">Bicatenaria</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <legend class="px-2 text-sm font-bold text-cyan-300">3 · Añadir nucleótidos (5′ → 3′)</legend>
+            <div class="grid grid-cols-5 gap-2" id="base-buttons"></div>
+            <p class="mt-2 text-xs text-slate-400">También puedes usar el teclado: A, T, G, C, U · Retroceso para deshacer.</p>
+            <div class="mt-3 grid grid-cols-3 gap-2">
+              <button type="button" id="lab-undo" class="rounded-lg border border-slate-700 px-2 py-2 text-sm hover:bg-slate-800">↶ Deshacer</button>
+              <button type="button" id="lab-clear" class="rounded-lg border border-slate-700 px-2 py-2 text-sm hover:bg-slate-800">🗑 Vaciar</button>
+              <button type="button" id="lab-random" class="rounded-lg border border-slate-700 px-2 py-2 text-sm hover:bg-slate-800">🎲 Aleatoria</button>
+            </div>
+          </fieldset>
+
+          <section class="rounded-2xl border border-amber-900/60 bg-amber-950/30 p-4" aria-labelledby="missions-title">
+            <h3 id="missions-title" class="font-bold text-amber-300">🎯 Misiones de síntesis</h3>
+            <ul id="lab-missions" class="mt-2 space-y-2 text-sm"></ul>
+          </section>
+        </div>
+
+        <!-- Visualización y análisis -->
+        <div class="space-y-4 min-w-0">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h3 class="font-bold">Visor del sintetizador</h3>
+              <span id="lab-class" class="rounded-full px-3 py-1 text-sm font-bold bg-slate-800 text-slate-300">Sin muestra</span>
+            </div>
+            <div id="lab-svg" class="scroll-x rounded-xl bg-slate-950 p-2 min-h-[120px]" aria-live="off"></div>
+            <!-- Leyenda: la información también es textual, no solo por color -->
+            <div class="mt-3 flex flex-wrap gap-3 text-xs text-slate-300" aria-label="Leyenda">
+              <span class="flex items-center gap-1"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="#facc15"/></svg> P = fosfato</span>
+              <span class="flex items-center gap-1"><svg width="16" height="16" aria-hidden="true"><polygon points="8,1 15,6 12,15 4,15 1,6" fill="#64748b"/></svg> dR = desoxirribosa</span>
+              <span class="flex items-center gap-1"><svg width="16" height="16" aria-hidden="true"><polygon points="8,1 15,6 12,15 4,15 1,6" fill="#f472b6"/></svg> R = ribosa (–OH en 2′)</span>
+              <span>Bloque alto = purina (A, G) · Bloque corto = pirimidina (C, T, U)</span>
+              <span>┆┆ = puentes de hidrógeno</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="lab-stats"></div>
+
+          <div id="lab-feedback" role="status" aria-live="polite" aria-atomic="true"></div>
+
+          <div id="lab-profile" class="rounded-2xl border border-slate-800 bg-slate-900 p-4"></div>
+
+          <details class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <summary class="cursor-pointer font-bold text-cyan-300">📋 Ficha técnica comparativa ADN vs ARN</summary>
+            <div class="scroll-x mt-3">
+              <table class="w-full min-w-[520px] text-sm">
+                <caption class="sr-only">Comparación estructural y funcional entre ADN y ARN</caption>
+                <thead><tr class="text-left text-slate-400"><th scope="col" class="py-2 pr-2">Característica</th><th scope="col" class="py-2 pr-2">ADN</th><th scope="col" class="py-2">ARN</th></tr></thead>
+                <tbody class="divide-y divide-slate-800">
+                  <tr><th scope="row" class="py-2 pr-2 text-left font-semibold">Azúcar</th><td class="pr-2">Desoxirribosa (–H en C2′)</td><td>Ribosa (–OH en C2′)</td></tr>
+                  <tr><th scope="row" class="py-2 pr-2 text-left font-semibold">Bases</th><td class="pr-2">A, G, C, <strong>T</strong></td><td>A, G, C, <strong>U</strong></td></tr>
+                  <tr><th scope="row" class="py-2 pr-2 text-left font-semibold">Hebras</th><td class="pr-2">2, antiparalelas, en doble hélice</td><td>Generalmente 1 (puede plegarse sobre sí misma)</td></tr>
+                  <tr><th scope="row" class="py-2 pr-2 text-left font-semibold">Función</th><td class="pr-2">Almacenar y transmitir la información genética</td><td>Expresar la información: ARNm (mensajero), ARNt (transferencia), ARNr (ribosomal)</td></tr>
+                  <tr><th scope="row" class="py-2 pr-2 text-left font-semibold">Ubicación (eucariotas)</th><td class="pr-2">Núcleo, mitocondrias y cloroplastos</td><td>Se sintetiza en el núcleo; actúa en citoplasma y ribosomas</td></tr>
+                  <tr><th scope="row" class="py-2 pr-2 text-left font-semibold">Estabilidad</th><td class="pr-2">Alta (larga duración)</td><td>Baja (vida corta, se degrada con facilidad)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================================
+         NIVEL 1 · IDENTIFICACIÓN DE COMPONENTES ERRÓNEOS
+         Pedagogía: análisis crítico. Cada muestra tiene UN componente incorrecto
+         (base, azúcar, número de hebras o apareamiento). El estudiante debe
+         encontrarlo; los clics en componentes correctos también explican POR QUÉ
+         son correctos (el error se convierte en oportunidad de aprendizaje).
+         ======================================================================= -->
+    <section role="tabpanel" id="panel-l1" aria-labelledby="tab-l1" tabindex="0" hidden>
+      <div class="mb-4">
+        <h2 class="text-2xl font-extrabold">Nivel 1 · Control de calidad molecular</h2>
+        <p class="text-slate-300 text-sm max-w-3xl">El escáner detectó muestras contaminadas. En cada una hay <strong>un solo componente erróneo</strong>: una base, el azúcar, el número de hebras o un apareamiento. Haz clic (o usa Tab + Enter) sobre el componente equivocado.</p>
+      </div>
+      <div id="l1-root"></div>
+    </section>
+
+    <!-- =======================================================================
+         NIVEL 2 · TRANSCRIPCIÓN GUIADA (ADN molde → ARN mensajero)
+         Pedagogía: modelado del proceso. El estudiante actúa como la ARN
+         polimerasa: lee el molde 3′→5′ y sintetiza el ARNm 5′→3′ colocando la
+         base complementaria (con U en lugar de T). Luego observa los codones y
+         la proteína resultante (conexión con la traducción).
+         ======================================================================= -->
+    <section role="tabpanel" id="panel-l2" aria-labelledby="tab-l2" tabindex="0" hidden>
+      <div class="mb-4">
+        <h2 class="text-2xl font-extrabold">Nivel 2 · Sala de transcripción</h2>
+        <p class="text-slate-300 text-sm max-w-3xl">Eres la <strong>ARN polimerasa</strong>. Lee la hebra molde de ADN (3′→5′) y coloca, una a una, las bases del ARN mensajero (5′→3′). Puedes usar los botones o las teclas A, U, G, C.</p>
+      </div>
+      <div id="l2-root"></div>
+    </section>
+
+    <!-- =======================================================================
+         NIVEL 3 · DIAGNÓSTICO DE MUTACIONES Y ANOMALÍAS ESTRUCTURALES
+         Pedagogía: transferencia a contextos reales (anemia falciforme, fibrosis
+         quística, daño por desaminación). El estudiante compara referencia vs.
+         muestra y clasifica la alteración; después ve su efecto en la proteína.
+         ======================================================================= -->
+    <section role="tabpanel" id="panel-l3" aria-labelledby="tab-l3" tabindex="0" hidden>
+      <div class="mb-4">
+        <h2 class="text-2xl font-extrabold">Nivel 3 · Clínica genómica</h2>
+        <p class="text-slate-300 text-sm max-w-3xl">Compara la secuencia de <strong>referencia</strong> (sana) con la <strong>muestra</strong> del paciente y emite tu diagnóstico. Las secuencias de ADN se muestran como hebra codificante 5′→3′, agrupadas en tripletes (codones).</p>
+      </div>
+      <div id="l3-root"></div>
+    </section>
+
+    <!-- =======================================================================
+         INSIGNIAS DE MAESTRÍA
+         ======================================================================= -->
+    <section role="tabpanel" id="panel-badges" aria-labelledby="tab-badges" tabindex="0" hidden>
+      <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 class="text-2xl font-extrabold">Insignias de maestría</h2>
+          <p class="text-slate-300 text-sm">Cada insignia certifica un aprendizaje clave sobre ADN y ARN.</p>
+        </div>
+        <button type="button" id="btn-reset" class="rounded-lg border border-rose-800 px-3 py-2 text-sm text-rose-300 hover:bg-rose-950">↺ Reiniciar todo el progreso</button>
+      </div>
+      <ul id="badge-grid" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"></ul>
+    </section>
+  </main>
+
+  <footer class="mx-auto max-w-7xl px-4 pb-8 text-xs text-slate-500">
+    Recurso educativo abierto · Ciencias Naturales y Educación Ambiental · Grado 9.º · Funciona sin conexión a datos personales; el progreso se guarda solo en este navegador.
+  </footer>
+
+  <!-- Notificaciones flotantes (puntos, insignias) -->
+  <div id="toasts" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-[min(92vw,22rem)]" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- =========================================================================
+       PANEL INTRODUCTORIO (narrativa gamificada) · <dialog> nativo accesible
+       ========================================================================= -->
+  <dialog id="intro" aria-labelledby="intro-title" class="m-auto w-[min(94vw,46rem)] max-h-[92vh] overflow-y-auto rounded-3xl border border-cyan-800 bg-slate-950 p-0 text-slate-100 shadow-2xl shadow-cyan-900/40">
+    <div class="relative overflow-hidden rounded-3xl">
+      <div class="bg-gradient-to-br from-cyan-900/70 via-slate-950 to-fuchsia-950/60 p-6 sm:p-8">
+        <p class="text-xs font-bold uppercase tracking-[.25em] text-cyan-300">Transmisión prioritaria · Estación orbital Helix-9</p>
+        <h2 id="intro-title" class="mt-2 text-3xl sm:text-4xl font-black leading-tight">Bio-Ingeniero/a Genómico/a<br><span class="text-cyan-300">en entrenamiento</span></h2>
+        <div class="mt-4 space-y-3 text-slate-200 text-sm sm:text-base">
+          <p>Año 2147. Una tormenta de radiación cósmica golpeó el <strong>Banco Genético</strong> de la estación. Los archivos moleculares de los cultivos y de la tripulación están dañados: hay hebras con azúcares equivocados, bases fuera de lugar y mutaciones peligrosas.</p>
+          <p>La directora del laboratorio te ha elegido para una misión crítica. Antes de reparar el banco, deberás demostrar que distingues sin error las dos moléculas de la información: el <strong class="text-cyan-300">ADN</strong>, el archivo maestro, y el <strong class="text-pink-300">ARN</strong>, el mensajero que lleva las instrucciones a los ribosomas.</p>
+        </div>
+        <ol class="mt-5 grid gap-2 sm:grid-cols-2 text-sm">
+          <li class="rounded-xl bg-slate-900/80 p-3"><strong class="text-amber-300">🧪 Laboratorio:</strong> sintetiza ADN y ARN válidos.</li>
+          <li class="rounded-xl bg-slate-900/80 p-3"><strong class="text-amber-300">🔍 Nivel 1:</strong> detecta componentes erróneos.</li>
+          <li class="rounded-xl bg-slate-900/80 p-3"><strong class="text-amber-300">⚙️ Nivel 2:</strong> transcribe ADN a ARN mensajero.</li>
+          <li class="rounded-xl bg-slate-900/80 p-3"><strong class="text-amber-300">🩺 Nivel 3:</strong> diagnostica mutaciones.</li>
+        </ol>
+        <form method="dialog" id="intro-form" class="mt-6 flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div class="flex-1">
+            <label for="agent-name" class="block text-xs font-semibold text-slate-300 mb-1">Nombre en tu credencial (opcional)</label>
+            <input id="agent-name" type="text" maxlength="30" autocomplete="off" placeholder="Ej.: Valentina R."
+                   class="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 placeholder-slate-500">
+          </div>
+          <button type="submit" id="intro-start" class="rounded-xl bg-cyan-400 px-5 py-3 font-black text-slate-950 hover:bg-cyan-300">Aceptar la misión ▶</button>
+        </form>
+        <p class="mt-3 text-xs text-slate-400">Los errores no restan puntos: cada uno trae una explicación para que aprendas. ¡Experimenta!</p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Certificado final -->
+  <dialog id="cert" aria-labelledby="cert-title" class="m-auto w-[min(94vw,40rem)] rounded-3xl border border-amber-600 bg-slate-950 p-0 text-slate-100">
+    <div class="p-6 sm:p-8 text-center bg-gradient-to-b from-amber-950/50 to-slate-950 rounded-3xl">
+      <p class="text-5xl" aria-hidden="true">🏅</p>
+      <h2 id="cert-title" class="mt-2 text-2xl sm:text-3xl font-black text-amber-300">Certificación Bio-Ingeniería Genómica</h2>
+      <p class="mt-3 text-slate-200">Se certifica que <strong id="cert-name" class="text-cyan-300">Bio-Ingeniero/a</strong> completó la Misión Helix-9, diferenciando estructural y funcionalmente el ADN y el ARN.</p>
+      <p class="mt-3 text-lg">Puntaje final: <strong id="cert-score" class="text-amber-300">0</strong> · Insignias: <strong id="cert-badges">0</strong></p>
+      <form method="dialog" class="mt-6"><button class="rounded-xl bg-amber-400 px-5 py-3 font-black text-slate-950 hover:bg-amber-300">Volver al laboratorio</button></form>
+    </div>
+  </dialog>
+
+<script>
+'use strict';
+/* =====================================================================================
+   0. CONFIGURACIÓN DOCENTE
+   ===================================================================================== */
+const CONFIG = {
+  lockLevels: true,            // true: los niveles se desbloquean en orden (Nivel 1 → 2 → 3)
+  maxLabLength: 16,            // longitud máxima de la hebra en el laboratorio
+  storageKey: 'helix9_adn_arn_v1',
+  postMessageToParent: false   // true: notifica el progreso a un LMS contenedor (iframe)
+};
+
+/* =====================================================================================
+   1. MODELO BIOLÓGICO (reglas científicas)
+   Todas las validaciones del recurso se derivan de estas funciones; si el docente
+   desea ampliar el modelo (p. ej. pares no canónicos), este es el lugar.
+   ===================================================================================== */
+const BASES = {
+  A: { name: 'Adenina',  type: 'purina',     color: '#dc2626' },
+  G: { name: 'Guanina',  type: 'purina',     color: '#15803d' },
+  C: { name: 'Citosina', type: 'pirimidina', color: '#2563eb' },
+  T: { name: 'Timina',   type: 'pirimidina', color: '#b45309' },
+  U: { name: 'Uracilo',  type: 'pirimidina', color: '#9333ea' }
+};
+const SUGAR = {
+  desoxirribosa: { short: 'dR', color: '#64748b', text: '#f8fafc', c2: 'H' },
+  ribosa:        { short: 'R',  color: '#f472b6', text: '#1e1b4b', c2: 'OH' }
+};
+const isPurine = b => b === 'A' || b === 'G';
+
+/** Base complementaria según Watson-Crick. En ARN, la adenina se aparea con uracilo. */
+function complement(b, rna) {
+  return { A: rna ? 'U' : 'T', T: 'A', U: 'A', C: 'G', G: 'C' }[b];
+}
+/** Puentes de hidrógeno de un par: A–T/A–U = 2, G–C = 3; cualquier otro = 0 (no complementario). */
+function hBonds(a, b) {
+  const p = [a, b].sort().join('');
+  if (p === 'AT' || p === 'AU') return 2;
+  if (p === 'CG') return 3;
+  return 0;
+}
+/** ¿La base pertenece químicamente a la molécula? (T solo en ADN; U solo en ARN) */
+function baseFitsSugar(b, sugar) {
+  if (sugar === 'ribosa') return b !== 'T';
+  return b !== 'U';
+}
+
+/* Código genético estándar (orden U, C, A, G), usado para traducir el ARNm. */
+const CODE_ORDER = 'UCAG';
+const AA_STRING = 'FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG';
+const AA_NAMES = {
+  F: 'Fenilalanina (Phe)', L: 'Leucina (Leu)', S: 'Serina (Ser)', Y: 'Tirosina (Tyr)', C: 'Cisteína (Cys)',
+  W: 'Triptófano (Trp)', P: 'Prolina (Pro)', H: 'Histidina (His)', Q: 'Glutamina (Gln)', R: 'Arginina (Arg)',
+  I: 'Isoleucina (Ile)', M: 'Metionina (Met)', T: 'Treonina (Thr)', N: 'Asparagina (Asn)', K: 'Lisina (Lys)',
+  V: 'Valina (Val)', A: 'Alanina (Ala)', D: 'Ácido aspártico (Asp)', E: 'Ácido glutámico (Glu)', G: 'Glicina (Gly)',
+  '*': 'STOP'
+};
+function codonToAA(codon) {
+  const i = [...codon].map(c => CODE_ORDER.indexOf(c));
+  if (i.some(x => x < 0)) return '?';
+  return AA_STRING[i[0] * 16 + i[1] * 4 + i[2]];
+}
+/** Traduce un ARNm (o hebra codificante de ADN, T→U) hasta el primer codón de parada. */
+function translate(seq) {
+  const rna = seq.replace(/T/g, 'U');
+  const out = [];
+  for (let k = 0; k + 3 <= rna.length; k += 3) {
+    const aa = codonToAA(rna.slice(k, k + 3));
+    out.push({ codon: rna.slice(k, k + 3), aa });
+    if (aa === '*') break;
+  }
+  return out;
+}
+
+/* =====================================================================================
+   2. CONTENIDO DE LOS RETOS (editable por el docente)
+   ===================================================================================== */
+
+/* Nivel 1: cada muestra tiene exactamente un componente erróneo ("target").
+   target.kind: 'base' (con strand 'top'|'bottom' e índice i), 'sugar' o 'strands'. */
+const L1_ROUNDS = [
+  { id: 'l1-1', label: 'Muestra nuclear etiquetada como ADN', type: 'ADN', sugar: 'desoxirribosa', strands: 2,
+    top: 'ATGCUAGC', bottom: 'TACGATCG', target: { kind: 'base', strand: 'top', i: 4 },
+    hint: 'Revisa qué bases existen en el ADN. ¿Hay alguna que solo debería estar en el ARN?',
+    why: 'El <strong>uracilo (U)</strong> no forma parte del ADN. En la célula, un U en el ADN suele aparecer por <em>desaminación</em> de una citosina; la enzima <strong>uracil-ADN glicosilasa</strong> lo detecta como daño y lo retira. El ADN usa <strong>timina (T)</strong>, que tiene un grupo metilo (–CH₃) extra y permite distinguir el daño del contenido normal.' },
+  { id: 'l1-2', label: 'ARN mensajero recuperado del citoplasma', type: 'ARN', sugar: 'ribosa', strands: 1,
+    top: 'AUGGTACCU', target: { kind: 'base', strand: 'top', i: 4 },
+    hint: 'El ARN tiene una base exclusiva que reemplaza a otra del ADN. ¿Ves alguna intrusa?',
+    why: 'La <strong>timina (T)</strong> es exclusiva del ADN. En el ARN su lugar lo ocupa el <strong>uracilo (U)</strong>, que también se aparea con la adenina mediante 2 puentes de hidrógeno, pero no tiene el grupo metilo. Sintetizar U es energéticamente más "barato", algo útil para una molécula de vida corta como el ARNm.' },
+  { id: 'l1-3', label: 'Fragmento de ADN cromosómico', type: 'ADN', sugar: 'ribosa', strands: 2,
+    top: 'GATCCA', bottom: 'CTAGGT', target: { kind: 'sugar' },
+    hint: 'Las bases y el apareamiento están bien. Mira el esqueleto: ¿qué pentosa lleva el ADN?',
+    why: 'El ADN lleva <strong>desoxirribosa</strong>: le falta el grupo –OH en el carbono 2′ ("desoxi" = sin oxígeno). La <strong>ribosa</strong> sí tiene ese –OH, que hace a la molécula más reactiva y fácil de romper; por eso el ARN es menos estable y el ADN es ideal para guardar información durante toda la vida.' },
+  { id: 'l1-4', label: 'ADN capturado durante la replicación', type: 'ADN', sugar: 'desoxirribosa', strands: 2,
+    top: 'GATTACA', bottom: 'CTAGTGT', target: { kind: 'base', strand: 'bottom', i: 3 },
+    hint: 'Revisa los pares uno a uno. ¿Dónde faltan los puentes de hidrógeno?',
+    why: 'Frente a una <strong>timina (T)</strong> solo puede ir una <strong>adenina (A)</strong>. El par T–G no forma los puentes de hidrógeno correctos y deforma la doble hélice. Este tipo de error de copia lo corrige el <strong>sistema de reparación de apareamientos erróneos</strong> (mismatch repair); si no se corrige, en la siguiente replicación queda fijada una mutación.' },
+  { id: 'l1-5', label: 'ARN mensajero listo para el ribosoma', type: 'ARN', sugar: 'ribosa', strands: 2,
+    top: 'AUGCCU', bottom: 'UACGGA', target: { kind: 'strands' },
+    hint: 'Bases y azúcar son correctos para ARN. ¿Cuántas hebras tiene un ARN mensajero?',
+    why: 'El <strong>ARN mensajero es monocatenario</strong> (una sola hebra). Así el ribosoma puede leer sus codones directamente. Aunque el ARN puede plegarse sobre sí mismo (como el ARNt) y algunos virus tienen ARN de doble hebra, el ARNm celular funciona como una sola cadena.' },
+  { id: 'l1-6', label: 'Fragmento de ARN de transferencia', type: 'ARN', sugar: 'desoxirribosa', strands: 1,
+    top: 'GCGGAUUU', target: { kind: 'sugar' },
+    hint: 'Las bases son propias del ARN. ¿Y el azúcar del esqueleto?',
+    why: 'Todo ARN (mensajero, de transferencia o ribosomal) está formado por <strong>ribosa</strong>, que tiene un grupo –OH en el carbono 2′. Con desoxirribosa la molécula sería ADN. Ese –OH es la diferencia química que da nombre a ambas moléculas: ácido <em>ribo</em>nucleico vs. ácido <em>desoxirribo</em>nucleico.' }
+];
+
+/* Nivel 2: hebras molde de ADN escritas 3′→5′. El ARNm correcto se calcula automáticamente. */
+const L2_ROUNDS = [
+  { id: 'l2-1', template: 'TACGGT',       context: 'Gen de entrenamiento: un fragmento corto para calibrar la polimerasa.' },
+  { id: 'l2-2', template: 'TACAAACCGATT', context: 'Gen de una proteína de resistencia de los cultivos hidropónicos.' },
+  { id: 'l2-3', template: 'TACCTTGGGACT', context: 'Gen de una enzima de reparación de la tripulación.' }
+];
+
+/* Nivel 3: casos clínicos. answer ∈ {sustitucion, insercion, delecion, estructural, ninguna}.
+   Para 'mismatch', se muestran dos dobles hebras (referencia y muestra). */
+const L3_OPTIONS = [
+  { id: 'sustitucion', label: 'Sustitución', desc: 'Una base cambia por otra; la longitud no cambia.' },
+  { id: 'insercion',   label: 'Inserción',   desc: 'Se agregan uno o más nucleótidos.' },
+  { id: 'delecion',    label: 'Deleción',    desc: 'Se pierden uno o más nucleótidos.' },
+  { id: 'estructural', label: 'Anomalía estructural', desc: 'Base químicamente impropia o apareamiento erróneo.' },
+  { id: 'ninguna',     label: 'Sin alteraciones', desc: 'La muestra es idéntica a la referencia.' }
+];
+const L3_CASES = [
+  { id: 'l3-1', title: 'Paciente con glóbulos rojos en forma de hoz', gene: 'Gen HBB (β-globina de la hemoglobina)',
+    ref: 'ATGGTGCACCTGACTCCTGAGGAG', sample: 'ATGGTGCACCTGACTCCTGTGGAG', answer: 'sustitucion',
+    why: 'Una <strong>sustitución</strong> de A por T cambia el codón GAG (ácido glutámico) por GTG (valina). Este único cambio produce la <strong>anemia falciforme</strong>: la hemoglobina se agrupa y deforma los glóbulos rojos. Es una mutación <em>de sentido erróneo</em>. Ojo: no toda sustitución cambia la proteína; si el nuevo codón codifica el mismo aminoácido, se llama <em>silenciosa</em>.' },
+  { id: 'l3-2', title: 'Cultivo con proteína de membrana defectuosa', gene: 'Gen de transporte de iones (simulado)',
+    ref: 'ATGTTTGGCAAATGA', sample: 'ATGTTTAGGCAAATGA', answer: 'insercion',
+    why: 'Se <strong>insertó</strong> una A después del segundo codón. Como el ribosoma lee de tres en tres, todos los codones siguientes se desplazan: es un <strong>corrimiento del marco de lectura</strong>. La proteína cambia desde el punto de la inserción y pierde su función.' },
+  { id: 'l3-3', title: 'Paciente con secreciones espesas en pulmones', gene: 'Gen CFTR (región del codón 508)',
+    ref: 'ATCATCTTTGGTGTT', sample: 'ATCATTGGTGTT', answer: 'delecion',
+    why: 'Faltan <strong>tres nucleótidos (CTT)</strong>: es una <strong>deleción</strong>. Al perderse un múltiplo de 3, el marco de lectura se conserva, pero la proteína pierde un aminoácido (fenilalanina 508). Esta es la mutación ΔF508, la causa más común de <strong>fibrosis quística</strong>.' },
+  { id: 'l3-4', title: 'Tripulante con fallo en una enzima digestiva', gene: 'Gen de una hidrolasa (simulado)',
+    ref: 'ATGCTGTGGAAA', sample: 'ATGCTGTGAAAA', answer: 'sustitucion',
+    why: 'Una <strong>sustitución</strong> de G por A transforma el codón TGG (triptófano) en TGA, que en el ARNm es <strong>UGA: codón de parada</strong>. La traducción se detiene antes de tiempo y la proteína queda incompleta. Es una mutación <em>sin sentido</em>.' },
+  { id: 'l3-5', title: 'Muestra de control del Banco Genético', gene: 'Gen de referencia (simulado)',
+    ref: 'ATGGCCATTGTAATG', sample: 'ATGGCCATTGTAATG', answer: 'ninguna',
+    why: 'Ambas secuencias son <strong>idénticas</strong> base a base. Un buen diagnóstico también sabe reconocer la normalidad: no toda muestra está alterada. En el laboratorio real, estas muestras sirven de <em>control</em> para validar los equipos.' },
+  { id: 'l3-6', title: 'Muestra expuesta a radiación', gene: 'Fragmento de ADN del Banco Genético',
+    ref: 'ATGCGCACGTTA', sample: 'ATGCGUACGTTA', answer: 'estructural',
+    why: 'Apareció un <strong>uracilo (U) dentro del ADN</strong>, donde había una citosina. Es una <strong>anomalía estructural</strong>: la citosina perdió un grupo amino (<em>desaminación</em>) y se convirtió en uracilo. Si la reparación por escisión de bases no lo corrige, en la siguiente replicación el U se apareará con A y quedará una mutación permanente C→T.' },
+  { id: 'l3-7', title: 'Doble hélice con distorsión', gene: 'Fragmento bicatenario en replicación',
+    ref: 'GGATCCAT', refBottom: 'CCTAGGTA', sample: 'GGATCCAT', sampleBottom: 'CCCAGGTA', answer: 'estructural', mismatch: true,
+    why: 'La hebra superior es igual, pero en la tercera posición una <strong>adenina quedó frente a una citosina</strong> (A–C). Ese par no forma puentes de hidrógeno adecuados: es una <strong>anomalía estructural por apareamiento erróneo</strong>. La enzima ADN polimerasa corrige muchos de estos errores (corrección de pruebas) y el resto los repara el sistema <em>mismatch repair</em>.' }
+];
+
+/* Misiones del laboratorio libre. check(a) recibe el análisis de la molécula. */
+const LAB_MISSIONS = [
+  { id: 'lab-adn', text: 'Construye un ADN bicatenario válido de al menos 6 pares de bases.', pts: 30, badge: 'arquitecto',
+    check: a => a.kind === 'ADN2' && a.valid && a.len >= 6 },
+  { id: 'lab-arn', text: 'Construye un ARN monocatenario válido de al menos 6 nucleótidos.', pts: 30, badge: 'escriba',
+    check: a => a.kind === 'ARN1' && a.valid && a.len >= 6 },
+  { id: 'lab-hb',  text: 'Diseña una doble hélice de ADN con al menos 18 puentes de hidrógeno.', pts: 30, badge: 'estabilidad',
+    check: a => a.kind === 'ADN2' && a.valid && a.hb >= 18, hint: 'Pista: ¿qué par aporta 3 puentes de hidrógeno?' }
+];
+
+const BADGES = [
+  { id: 'arquitecto',   icon: '🧬', name: 'Arquitecto/a del ADN',       desc: 'Sintetizaste una doble hélice de ADN válida y complementaria.' },
+  { id: 'escriba',      icon: '📜', name: 'Escriba del ARN',            desc: 'Sintetizaste un ARN monocatenario con ribosa y uracilo.' },
+  { id: 'estabilidad',  icon: '🔗', name: 'Maestría en puentes de H',   desc: 'Comprendiste que los pares G–C (3 puentes) estabilizan la hélice.' },
+  { id: 'detective',    icon: '🔍', name: 'Detective molecular',        desc: 'Completaste el Nivel 1: identificación de componentes erróneos.' },
+  { id: 'transcriptor', icon: '⚙️', name: 'Transcriptor/a maestro/a',   desc: 'Completaste el Nivel 2: transcripción de ADN a ARNm.' },
+  { id: 'diagnostico',  icon: '🩺', name: 'Diagnóstico genómico',       desc: 'Completaste el Nivel 3: mutaciones y anomalías.' },
+  { id: 'precision',    icon: '🎯', name: 'Precisión perfecta',         desc: 'Completaste un nivel completo sin ningún error.' },
+  { id: 'certificado',  icon: '🏅', name: 'Bio-Ingeniero/a certificado/a', desc: 'Completaste todas las misiones de Helix-9.' }
+];
+const RANKS = [ [0, 'Aprendiz'], [120, 'Técnico/a de laboratorio'], [280, 'Especialista molecular'], [420, 'Bio-Ingeniero/a genómico/a'] ];
+
+/* Lista de todas las tareas que cuentan para la barra de progreso (19). */
+const ALL_TASKS = [
+  ...LAB_MISSIONS.map(m => m.id), ...L1_ROUNDS.map(r => r.id), ...L2_ROUNDS.map(r => r.id), ...L3_CASES.map(c => c.id)
+];
+
+/* =====================================================================================
+   3. ESTADO DEL JUEGO Y PERSISTENCIA (localStorage, protegido con try/catch)
+   ===================================================================================== */
+const state = {
+  name: '',
+  score: 0,
+  done: new Set(),
+  badges: new Set(),
+  errors: { l1: 0, l2: 0, l3: 0 },
+  lab: { sugar: 'desoxirribosa', strands: 2, seq: [], comp: [] },
+  l1: { i: 0, attempts: 0, solved: false },
+  l2: { i: 0, built: [], roundErrors: 0, solved: false },
+  l3: { i: 0, attempts: 0, solved: false, chosen: null },
+  activeTab: 'lab'
+};
+
+function save() {
+  try {
+    localStorage.setItem(CONFIG.storageKey, JSON.stringify({
+      name: state.name, score: state.score, done: [...state.done], badges: [...state.badges], errors: state.errors
+    }));
+  } catch (e) { /* almacenamiento no disponible: el juego sigue funcionando */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(CONFIG.storageKey);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    state.name = typeof d.name === 'string' ? d.name.slice(0, 30) : '';
+    state.score = Number(d.score) || 0;
+    state.done = new Set((d.done || []).filter(id => ALL_TASKS.includes(id)));
+    state.badges = new Set((d.badges || []).filter(id => BADGES.some(b => b.id === id)));
+    state.errors = Object.assign({ l1: 0, l2: 0, l3: 0 }, d.errors || {});
+    return true;
+  } catch (e) { return false; }
+}
+/** Reanuda cada nivel en el primer reto pendiente. */
+function firstPending(list) {
+  const k = list.findIndex(x => !state.done.has(x.id));
+  return k === -1 ? list.length : k;
+}
+
+/* =====================================================================================
+   4. UTILIDADES DE INTERFAZ
+   ===================================================================================== */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/** Módulo de retroalimentación formativa. type: ok | err | warn | info */
+function feedback(el, type, title, body) {
+  const styles = {
+    ok:   ['border-emerald-600 bg-emerald-950/60', '✔', 'text-emerald-300'],
+    err:  ['border-rose-600 bg-rose-950/60',       '✖', 'text-rose-300'],
+    warn: ['border-amber-600 bg-amber-950/50',     '⚠', 'text-amber-300'],
+    info: ['border-sky-700 bg-sky-950/50',         'ℹ', 'text-sky-300']
+  }[type];
+  el.innerHTML = `
+    <div class="pop rounded-2xl border ${styles[0]} p-4">
+      <p class="font-bold ${styles[2]}"><span aria-hidden="true">${styles[1]}</span> ${title}</p>
+      ${body ? `<div class="mt-1 text-sm text-slate-200 leading-relaxed">${body}</div>` : ''}
+    </div>`;
+}
+
+function toast(html, kind = 'info') {
+  const colors = { pts: 'border-amber-500 bg-amber-950', badge: 'border-emerald-500 bg-emerald-950', info: 'border-slate-600 bg-slate-900' };
+  const t = document.createElement('div');
+  t.className = `pop rounded-xl border ${colors[kind] || colors.info} px-4 py-3 text-sm shadow-xl`;
+  t.innerHTML = html;
+  const box = $('#toasts');
+  box.appendChild(t);
+  while (box.children.length > 3) box.firstElementChild.remove(); // evita tapar el contenido
+  setTimeout(() => t.remove(), 4200);
+}
+
+/* =====================================================================================
+   5. SISTEMA DE PUNTUACIÓN, PROGRESO E INSIGNIAS
+   ===================================================================================== */
+function addPoints(n, reason) {
+  if (n <= 0) return;
+  state.score += n;
+  toast(`<strong class="text-amber-300">+${n} pts</strong> · ${reason}`, 'pts');
+}
+function award(id) {
+  if (state.badges.has(id)) return;
+  state.badges.add(id);
+  const b = BADGES.find(x => x.id === id);
+  toast(`<span class="text-xl" aria-hidden="true">${b.icon}</span> <strong class="text-emerald-300">¡Insignia desbloqueada!</strong><br>${b.name}`, 'badge');
+  renderBadges();
+}
+/** Marca una tarea como completada (una sola vez) y revisa logros. */
+function completeTask(id, pts, reason) {
+  if (state.done.has(id)) return false;
+  state.done.add(id);
+  addPoints(pts, reason);
+  checkLevelCompletion();
+  updateHUD();
+  save();
+  return true;
+}
+const levelDone = list => list.every(x => state.done.has(x.id));
+
+function checkLevelCompletion() {
+  const levels = [
+    { list: L1_ROUNDS, badge: 'detective', err: 'l1' },
+    { list: L2_ROUNDS, badge: 'transcriptor', err: 'l2' },
+    { list: L3_CASES, badge: 'diagnostico', err: 'l3' }
+  ];
+  levels.forEach(l => {
+    if (levelDone(l.list) && !state.badges.has(l.badge)) {
+      award(l.badge);
+      if (state.errors[l.err] === 0) award('precision');
+    }
+  });
+  if (ALL_TASKS.every(id => state.done.has(id)) && !state.badges.has('certificado')) {
+    award('certificado');
+    setTimeout(showCertificate, 900);
+  }
+  updateTabs();
+}
+
+function updateHUD() {
+  const pct = Math.round(100 * ALL_TASKS.filter(id => state.done.has(id)).length / ALL_TASKS.length);
+  $('#hud-score').textContent = state.score;
+  $('#hud-progress-text').textContent = pct + '%';
+  $('#hud-progress-bar').style.width = pct + '%';
+  $('#hud-progress').setAttribute('aria-valuenow', pct);
+  $('#hud-badges').textContent = state.badges.size;
+  $('#hud-badges-total').textContent = BADGES.length;
+  $('#hud-rank').textContent = RANKS.filter(r => state.score >= r[0]).pop()[1];
+  $('#hud-name').textContent = state.name ? `Agente ${state.name}` : 'Bio-Ingeniero/a en entrenamiento';
+  if (CONFIG.postMessageToParent && window.parent !== window) {
+    try { window.parent.postMessage({ type: 'helix9-progress', score: state.score, progress: pct }, '*'); } catch (e) {}
+  }
+}
+
+function renderBadges() {
+  $('#badge-grid').innerHTML = BADGES.map(b => {
+    const got = state.badges.has(b.id);
+    return `<li class="rounded-2xl border ${got ? 'border-emerald-600 bg-emerald-950/40' : 'border-slate-800 bg-slate-900 opacity-70'} p-4">
+      <p class="text-4xl ${got ? '' : 'grayscale'}" aria-hidden="true">${got ? b.icon : '🔒'}</p>
+      <h3 class="mt-2 font-bold">${b.name}</h3>
+      <p class="text-sm text-slate-300">${b.desc}</p>
+      <p class="mt-2 text-xs font-bold ${got ? 'text-emerald-300' : 'text-slate-500'}">${got ? 'Obtenida' : 'Bloqueada'}</p>
+    </li>`;
+  }).join('');
+  $('#hud-badges').textContent = state.badges.size;
+}
+
+function showCertificate() {
+  $('#cert-name').textContent = state.name || 'Bio-Ingeniero/a';
+  $('#cert-score').textContent = state.score;
+  $('#cert-badges').textContent = `${state.badges.size}/${BADGES.length}`;
+  const d = $('#cert');
+  if (typeof d.showModal === 'function' && !d.open) d.showModal();
+}
+
+/* =====================================================================================
+   6. NAVEGACIÓN POR PESTAÑAS (accesible, con bloqueo secuencial de niveles)
+   ===================================================================================== */
+const TABS = ['lab', 'l1', 'l2', 'l3', 'badges'];
+function isLocked(tab) {
+  if (!CONFIG.lockLevels) return false;
+  if (tab === 'l2') return !levelDone(L1_ROUNDS);
+  if (tab === 'l3') return !levelDone(L2_ROUNDS);
+  return false;
+}
+function updateTabs() {
+  const labels = { lab: '🧪 Laboratorio', l1: '🔍 Nivel 1', l2: '⚙️ Nivel 2', l3: '🩺 Nivel 3', badges: '🏅 Insignias' };
+  TABS.forEach(t => {
+    const btn = $('#tab-' + t);
+    const locked = isLocked(t);
+    btn.textContent = locked ? labels[t].replace(/^\S+/, '🔒') : labels[t];
+    btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    const sel = state.activeTab === t;
+    btn.className = 'tab-btn whitespace-nowrap rounded-t-lg px-4 py-2 text-sm font-bold border-b-2 ' +
+      (sel ? 'border-cyan-400 text-cyan-300 bg-slate-900' : 'border-transparent text-slate-400 hover:text-slate-200') +
+      (locked ? ' opacity-60' : '');
+  });
+}
+function selectTab(t, focus = false) {
+  if (isLocked(t)) {
+    const prev = t === 'l2' ? 'Nivel 1' : 'Nivel 2';
+    toast(`🔒 Completa el <strong>${prev}</strong> para desbloquear este nivel.`);
+    return;
+  }
+  state.activeTab = t;
+  TABS.forEach(x => {
+    const btn = $('#tab-' + x), panel = $('#panel-' + x);
+    const on = x === t;
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    btn.tabIndex = on ? 0 : -1;
+    panel.hidden = !on;
+  });
+  if (focus) $('#tab-' + t).focus();
+  updateTabs();
+  if (t === 'l1') renderL1();
+  if (t === 'l2') renderL2();
+  if (t === 'l3') renderL3();
+}
+$('#tablist').addEventListener('click', e => {
+  const b = e.target.closest('[role="tab"]');
+  if (b) selectTab(b.id.replace('tab-', ''));
+});
+$('#tablist').addEventListener('keydown', e => {
+  const k = TABS.indexOf(state.activeTab);
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const d = e.key === 'ArrowRight' ? 1 : -1;
+    let n = k;
+    for (let s = 0; s < TABS.length; s++) { n = (n + d + TABS.length) % TABS.length; if (!isLocked(TABS[n])) break; }
+    selectTab(TABS[n], true);
+  }
+});
+
+/* =====================================================================================
+   7. RENDERIZADOR MOLECULAR (SVG dinámico)
+   Representa cada nucleótido con sus tres partes: fosfato (P), azúcar (pentágono) y
+   base nitrogenada. Las purinas se dibujan más largas que las pirimidinas, de modo que
+   un par purina–pirimidina encaja con el ancho constante de la doble hélice: así los
+   estudiantes "ven" por qué A–G o C–T no encajan.
+   ===================================================================================== */
+function pentagon(cx, cy, r) {
+  const pts = [];
+  for (let k = 0; k < 5; k++) {
+    const a = -Math.PI / 2 + k * 2 * Math.PI / 5;
+    pts.push((cx + r * Math.cos(a)).toFixed(1) + ',' + (cy + r * Math.sin(a)).toFixed(1));
+  }
+  return pts.join(' ');
+}
+
+/**
+ * @param {Object} o
+ *  top, bottom: arreglos de bases (bottom puede ser null o contener null = hueco)
+ *  sugarTop, sugarBottom: 'desoxirribosa' | 'ribosa'
+ *  labelsTop/labelsBottom: extremos [izq, der], p. ej. ['5′','3′']
+ *  clickable: 'none' | 'bottom' | 'all'
+ *  marks: { 'top-3': 'error', 'bottom-2': 'ok' }
+ *  showMismatch: dibuja ✕ en pares no complementarios
+ *  next: índice del hueco a resaltar (nivel 2)
+ */
+function strandSVG(o) {
+  const W = 56, M = 40;
+  const n = Math.max(o.top.length, o.bottom ? o.bottom.length : 0, 1);
+  const dbl = !!o.bottom;
+  const width = Math.max(M * 2 + n * W, o.top.length ? 0 : 300);
+  const H = dbl ? 224 : 112;
+  const yS1 = 24, yB1 = 44;            // azúcar y base (hebra superior)
+  const yS2 = 200, yB2end = 180;       // azúcar y extremo de base (hebra inferior)
+  const hBase = b => isPurine(b) ? 56 : 38;
+  const cx = i => M + W / 2 + i * W;
+  const parts = [];
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${H}" width="${width}" height="${H}" role="group" aria-label="${esc(o.ariaLabel || 'Representación de la molécula')}" style="max-width:none">`);
+
+  const backbone = (y, len, sugar, lbls) => {
+    if (!len) return;
+    parts.push(`<line x1="${cx(0) - W / 2}" y1="${y}" x2="${cx(len - 1)}" y2="${y}" stroke="#94a3b8" stroke-width="3"/>`);
+    parts.push(`<text x="${M - 30}" y="${y + 5}" fill="#67e8f9" font-size="14" font-weight="700">${lbls[0]}</text>`);
+    parts.push(`<text x="${cx(len - 1) + 22}" y="${y + 5}" fill="#67e8f9" font-size="14" font-weight="700">${lbls[1]}</text>`);
+  };
+  backbone(yS1, o.top.length, o.sugarTop, o.labelsTop || ['5′', '3′']);
+  if (dbl) backbone(yS2, o.bottom.length, o.sugarBottom, o.labelsBottom || ['3′', '5′']);
+
+  const nucleotide = (strand, i, b, sugar) => {
+    const x = cx(i), top = strand === 'top';
+    const yS = top ? yS1 : yS2;
+    const S = SUGAR[sugar];
+    const clickable = o.clickable === 'all' || (o.clickable === 'bottom' && !top);
+    const mark = o.marks && o.marks[strand + '-' + i];
+    const g = [];
+    // fosfato (unido al carbono 5′ del azúcar)
+    g.push(`<circle cx="${x - W / 2}" cy="${yS}" r="8" fill="#facc15"/><text x="${x - W / 2}" y="${yS + 3}" text-anchor="middle" font-size="9" font-weight="800" fill="#422006">P</text>`);
+    if (b === null || b === undefined) {
+      // hueco (Nivel 2): base aún no colocada
+      const isNext = o.next === i;
+      const y0 = top ? yB1 : yB2end - 38;
+      g.push(`<rect x="${x - 18}" y="${y0}" width="36" height="38" rx="6" fill="none" stroke="${isNext ? '#22d3ee' : '#334155'}" stroke-width="2" stroke-dasharray="4 3" class="${isNext ? 'slot-next' : ''}"/>`);
+      g.push(`<text x="${x}" y="${y0 + 25}" text-anchor="middle" font-size="16" fill="${isNext ? '#22d3ee' : '#475569'}">?</text>`);
+      return g.join('');
+    }
+    const B = BASES[b];
+    const h = hBase(b);
+    const y0 = top ? yB1 : yB2end - h;
+    // enlace azúcar–base (enlace N-glucosídico)
+    g.push(`<line x1="${x}" y1="${yS}" x2="${x}" y2="${top ? y0 : y0 + h}" stroke="#94a3b8" stroke-width="2"/>`);
+    // azúcar (pentágono) con su grupo en C2′
+    g.push(`<polygon points="${pentagon(x, yS, 13)}" fill="${S.color}" stroke="#0f172a" stroke-width="1.5"/>`);
+    g.push(`<text x="${x}" y="${yS + 4}" text-anchor="middle" font-size="9" font-weight="800" fill="${S.text}">${S.short}</text>`);
+    g.push(`<text x="${x + 15}" y="${top ? yS + 16 : yS - 9}" font-size="8" font-weight="700" fill="${S.c2 === 'OH' ? '#f9a8d4' : '#94a3b8'}">${S.c2}</text>`);
+    // base nitrogenada
+    const stroke = mark === 'error' ? 'stroke="#fb7185" stroke-width="4"' : mark === 'ok' ? 'stroke="#34d399" stroke-width="4"' : '';
+    g.push(`<rect class="base" x="${x - 18}" y="${y0}" width="36" height="${h}" rx="6" fill="${B.color}" ${stroke}/>`);
+    g.push(`<text x="${x}" y="${y0 + h / 2 + 7}" text-anchor="middle" font-size="20" font-weight="900" fill="#ffffff" pointer-events="none">${b}</text>`);
+    const label = `${B.name} (${b}), ${B.type}, con ${sugar}, hebra ${top ? 'superior' : 'inferior'}, posición ${i + 1}`;
+    if (clickable) {
+      return `<g class="nt" data-strand="${strand}" data-i="${i}" tabindex="0" role="button" aria-label="${esc(label)}"><title>${esc(label)}</title>${g.join('')}</g>`;
+    }
+    return `<g class="nt static" aria-label="${esc(label)}"><title>${esc(label)}</title>${g.join('')}</g>`;
+  };
+
+  // puentes de hidrógeno entre pares
+  if (dbl) {
+    for (let i = 0; i < n; i++) {
+      const a = o.top[i], b = o.bottom[i];
+      if (!a || !b) continue;
+      const yA = yB1 + hBase(a), yB = yB2end - hBase(b);
+      const hb = hBonds(a, b);
+      const x = cx(i);
+      if (hb > 0) {
+        const offs = hb === 3 ? [-9, 0, 9] : [-6, 6];
+        offs.forEach(d => parts.push(`<line x1="${x + d}" y1="${yA + 2}" x2="${x + d}" y2="${yB - 2}" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="3 3"/>`));
+      } else if (o.showMismatch) {
+        const ym = (Math.min(yA, yB) + Math.max(yA, yB)) / 2;
+        parts.push(`<text x="${x}" y="${ym + 6}" text-anchor="middle" font-size="18" font-weight="900" fill="#fb7185">✕</text>`);
+      }
+    }
+  }
+  o.top.forEach((b, i) => parts.push(nucleotide('top', i, b, o.sugarTop)));
+  if (dbl) o.bottom.forEach((b, i) => parts.push(nucleotide('bottom', i, b, o.sugarBottom)));
+  if (!o.top.length) parts.push(`<text x="${width / 2}" y="${H / 2}" text-anchor="middle" fill="#64748b" font-size="13">Añade nucleótidos para empezar</text>`);
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+/** Delegación de eventos (clic + Enter/Espacio) para nucleótidos interactivos. */
+function bindNucleotides(container, handler) {
+  container.addEventListener('click', e => {
+    const g = e.target.closest('.nt[data-i]');
+    if (g) handler(g.dataset.strand, Number(g.dataset.i));
+  });
+  container.addEventListener('keydown', e => {
+    const g = e.target.closest('.nt[data-i]');
+    if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handler(g.dataset.strand, Number(g.dataset.i)); }
+  });
+}
+
+/* =====================================================================================
+   8. SECCIÓN A · LABORATORIO DE CONSTRUCCIÓN MOLECULAR
+   ===================================================================================== */
+const PROFILES = {
+  ADN: { title: 'Perfil: ADN (ácido desoxirribonucleico)', fn: 'Almacena y transmite la información hereditaria; se replica antes de cada división celular.',
+         loc: 'Núcleo (cromosomas), mitocondrias y cloroplastos. En procariotas, en el nucleoide.' },
+  ARN: { title: 'Perfil: ARN (ácido ribonucleico)', fn: 'Expresa la información: el ARNm lleva el mensaje (transcripción) y, con ARNt y ARNr, se traduce a proteína en el ribosoma.',
+         loc: 'Se sintetiza en el núcleo; sale por los poros nucleares y actúa en el citoplasma y los ribosomas.' }
+};
+
+function labAnalysis() {
+  const L = state.lab, rna = L.sugar === 'ribosa', seq = L.seq;
+  const bottom = L.strands === 2 ? seq.map((b, i) => L.comp[i] || complement(b, rna)) : null;
+  const invalidTop = [], invalidBottom = [], mismatches = [];
+  seq.forEach((b, i) => { if (!baseFitsSugar(b, L.sugar)) invalidTop.push(i); });
+  let hb = 0;
+  if (bottom) bottom.forEach((b, i) => {
+    if (!baseFitsSugar(b, L.sugar)) invalidBottom.push(i);
+    const h = hBonds(seq[i], b);
+    if (h === 0) mismatches.push(i); else hb += h;
+  });
+  const all = bottom ? seq.concat(bottom) : seq;
+  const gc = all.length ? Math.round(100 * all.filter(b => b === 'G' || b === 'C').length / all.length) : 0;
+  const pur = all.filter(isPurine).length;
+  return {
+    rna, bottom, invalidTop, invalidBottom, mismatches, hb, gc, pur, pyr: all.length - pur,
+    len: seq.length, kind: (rna ? 'ARN' : 'ADN') + L.strands,
+    valid: seq.length > 0 && !invalidTop.length && !invalidBottom.length && !mismatches.length
+  };
+}
+
+function renderLab() {
+  const L = state.lab, a = labAnalysis();
+  const marks = {};
+  a.invalidTop.forEach(i => marks['top-' + i] = 'error');
+  a.invalidBottom.forEach(i => marks['bottom-' + i] = 'error');
+  a.mismatches.forEach(i => marks['bottom-' + i] = 'error');
+  $('#lab-svg').innerHTML = strandSVG({
+    top: L.seq, bottom: a.bottom, sugarTop: L.sugar, sugarBottom: L.sugar,
+    clickable: 'bottom', marks, showMismatch: true,
+    ariaLabel: `Molécula construida: ${L.seq.join('') || 'vacía'}${a.bottom ? ', hebra complementaria ' + a.bottom.join('') : ''}`
+  });
+
+  // Clasificación de la molécula
+  let cls, txt;
+  if (!a.len) { cls = 'bg-slate-800 text-slate-300'; txt = 'Sin muestra'; }
+  else if (a.invalidTop.length || a.invalidBottom.length) { cls = 'bg-rose-900 text-rose-100'; txt = '✖ Quimera no válida'; }
+  else if (a.mismatches.length) { cls = 'bg-amber-900 text-amber-100'; txt = '⚠ Apareamiento incorrecto'; }
+  else if (a.kind === 'ADN2') { cls = 'bg-emerald-800 text-emerald-50'; txt = '✔ ADN bicatenario'; }
+  else if (a.kind === 'ARN1') { cls = 'bg-emerald-800 text-emerald-50'; txt = '✔ ARN monocatenario'; }
+  else if (a.kind === 'ADN1') { cls = 'bg-sky-900 text-sky-100'; txt = 'ADN monocatenario (poco común)'; }
+  else { cls = 'bg-sky-900 text-sky-100'; txt = 'ARN bicatenario (poco común)'; }
+  const badge = $('#lab-class');
+  badge.className = 'rounded-full px-3 py-1 text-sm font-bold ' + cls;
+  badge.textContent = txt;
+
+  // Estadísticas
+  const stat = (label, value, note) => `<div class="rounded-xl border border-slate-800 bg-slate-900 p-3">
+      <p class="text-[11px] uppercase tracking-wider text-slate-400">${label}</p>
+      <p class="text-xl font-black">${value}</p>${note ? `<p class="text-[11px] text-slate-400">${note}</p>` : ''}</div>`;
+  $('#lab-stats').innerHTML =
+    stat('Longitud', `${a.len}${L.strands === 2 ? ' pb' : ' nt'}`, L.strands === 2 ? 'pares de bases' : 'nucleótidos') +
+    stat('Contenido G+C', a.gc + '%', 'más G–C = hélice más estable') +
+    stat('Puentes de H', L.strands === 2 ? a.hb : '—', L.strands === 2 ? 'A–T/U: 2 · G–C: 3' : 'solo en pares de bases') +
+    stat('Purinas / Pirimidinas', `${a.pur} / ${a.pyr}`, L.strands === 2 && a.valid ? 'iguales: regla de Chargaff' : 'A, G / C, T, U');
+
+  // Perfil funcional
+  const p = PROFILES[a.rna ? 'ARN' : 'ADN'];
+  $('#lab-profile').innerHTML = `
+    <h3 class="font-bold ${a.rna ? 'text-pink-300' : 'text-cyan-300'}">${p.title}</h3>
+    <dl class="mt-2 grid gap-2 sm:grid-cols-2 text-sm">
+      <div><dt class="text-slate-400 text-xs uppercase">Función celular</dt><dd>${p.fn}</dd></div>
+      <div><dt class="text-slate-400 text-xs uppercase">Ubicación celular</dt><dd>${p.loc}</dd></div>
+    </dl>
+    <p class="mt-2 text-xs text-slate-400">El perfil se basa en el azúcar elegido: es el rasgo químico que define si la molécula es ADN o ARN.</p>`;
+
+  renderMissions();
+  checkMissions(a);
+}
+
+function renderMissions() {
+  $('#lab-missions').innerHTML = LAB_MISSIONS.map(m => {
+    const d = state.done.has(m.id);
+    return `<li class="flex gap-2 ${d ? 'text-emerald-300' : 'text-slate-200'}">
+      <span aria-hidden="true">${d ? '✅' : '⬜'}</span>
+      <span>${m.text} <span class="text-xs text-amber-300">(+${m.pts})</span>${!d && m.hint ? `<br><span class="text-xs text-slate-400">${m.hint}</span>` : ''}
+      <span class="sr-only">${d ? 'Completada' : 'Pendiente'}</span></span></li>`;
+  }).join('');
+}
+
+function checkMissions(a) {
+  LAB_MISSIONS.forEach(m => {
+    if (!state.done.has(m.id) && m.check(a)) {
+      completeTask(m.id, m.pts, 'Misión de síntesis');
+      award(m.badge);
+      renderMissions();
+    }
+  });
+}
+
+/** Retroalimentación inmediata al añadir una base. */
+function explainAdd(b) {
+  const L = state.lab, rna = L.sugar === 'ribosa', B = BASES[b], fb = $('#lab-feedback');
+  if (rna && b === 'T') {
+    return feedback(fb, 'err', 'La timina (T) no forma parte del ARN',
+      'Con <strong>ribosa</strong> estás construyendo ARN, que usa <strong>uracilo (U)</strong> en lugar de timina. Ambas se aparean con la adenina, pero la timina tiene un grupo metilo (–CH₃) extra que solo usa el ADN. Deshaz la base o cambia el azúcar a desoxirribosa.');
+  }
+  if (!rna && b === 'U') {
+    return feedback(fb, 'err', 'El uracilo (U) no pertenece al ADN',
+      'Con <strong>desoxirribosa</strong> estás construyendo ADN, que usa <strong>timina (T)</strong>. Cuando aparece U en el ADN, la célula lo interpreta como <em>daño</em> (proviene de una citosina desaminada) y la enzima uracil-ADN glicosilasa lo elimina.');
+  }
+  let body = `${B.name} es una <strong>${B.type}</strong> (${B.type === 'purina' ? 'dos anillos' : 'un anillo'}).`;
+  if (L.strands === 2) {
+    const c = complement(b, rna);
+    body += ` En la hebra opuesta se coloca <strong>${BASES[c].name} (${c})</strong>, unidas por <strong>${hBonds(b, c)} puentes de hidrógeno</strong>. Las hebras son antiparalelas: una va 5′→3′ y la otra 3′→5′.`;
+  }
+  feedback(fb, 'ok', `${B.name} (${b}) añadida con ${L.sugar}`, body);
+}
+
+function labAdd(b) {
+  const L = state.lab;
+  if (L.seq.length >= CONFIG.maxLabLength) {
+    return feedback($('#lab-feedback'), 'warn', 'Hebra al máximo', `El sintetizador admite hasta ${CONFIG.maxLabLength} nucleótidos. Usa "Deshacer" o "Vaciar".`);
+  }
+  L.seq.push(b); L.comp.push(null);
+  explainAdd(b);
+  renderLab();
+}
+
+/** En doble hebra: tocar una base inferior la cambia, para experimentar con la complementariedad. */
+function labCycleBottom(i) {
+  const L = state.lab, rna = L.sugar === 'ribosa';
+  if (L.strands !== 2) return;
+  const options = rna ? ['A', 'U', 'G', 'C'] : ['A', 'T', 'G', 'C'];
+  const current = L.comp[i] || complement(L.seq[i], rna);
+  const next = options[(options.indexOf(current) + 1) % options.length];
+  L.comp[i] = next;
+  const a = L.seq[i], h = hBonds(a, next), fb = $('#lab-feedback');
+  if (h > 0) {
+    feedback(fb, 'ok', `Par ${a}–${next}: complementario`, `${BASES[a].name} y ${BASES[next].name} forman <strong>${h} puentes de hidrógeno</strong>. Una purina siempre se aparea con una pirimidina, por eso la doble hélice tiene un ancho constante (unos 2 nm).`);
+  } else {
+    const size = isPurine(a) && isPurine(next)
+      ? 'Además, dos <strong>purinas</strong> juntas son demasiado grandes: no caben dentro de la hélice.'
+      : (!isPurine(a) && !isPurine(next) ? 'Además, dos <strong>pirimidinas</strong> quedan demasiado separadas para unirse.' : 'Aunque el tamaño encaja (purina + pirimidina), sus grupos químicos no coinciden para formar los puentes.');
+    feedback(fb, 'err', `Par ${a}–${next}: NO complementario`,
+      `En el ${rna ? 'ARN solo se forman A–U' : 'ADN solo se forman A–T'} (2 puentes de H) y G–C (3 puentes de H). ${size} Vuelve a tocar la base para seguir probando.`);
+  }
+  renderLab();
+}
+
+function initLab() {
+  // Botones de bases (generados para mantener un único punto de verdad: BASES)
+  $('#base-buttons').innerHTML = ['A', 'T', 'G', 'C', 'U'].map(b =>
+    `<button type="button" data-base="${b}" class="flex flex-col items-center rounded-xl py-2 font-black text-white text-xl shadow hover:brightness-110 active:scale-95"
+       style="background:${BASES[b].color}" aria-label="Añadir ${BASES[b].name} (${b}), ${BASES[b].type}">${b}<span class="text-[10px] font-semibold opacity-90">${BASES[b].name}</span></button>`).join('');
+  $('#base-buttons').addEventListener('click', e => { const b = e.target.closest('[data-base]'); if (b) labAdd(b.dataset.base); });
+
+  document.querySelectorAll('input[name="sugar"]').forEach(r => r.addEventListener('change', () => {
+    state.lab.sugar = r.value;
+    state.lab.comp = state.lab.seq.map(() => null); // la hebra complementaria se recalcula
+    const rna = r.value === 'ribosa';
+    const conflict = state.lab.seq.some(b => !baseFitsSugar(b, r.value));
+    feedback($('#lab-feedback'), conflict ? 'warn' : 'info', rna ? 'Cambiaste a ribosa → ahora es ARN' : 'Cambiaste a desoxirribosa → ahora es ADN',
+      (rna ? 'La ribosa tiene un grupo <strong>–OH en el carbono 2′</strong>, que hace al ARN más reactivo y de vida corta.'
+           : 'La desoxirribosa tiene solo <strong>–H en el carbono 2′</strong>: el ADN es más estable, ideal para archivar información.') +
+      (conflict ? ` <br><strong>Atención:</strong> tu hebra contiene ${rna ? 'timina (T), propia del ADN' : 'uracilo (U), propio del ARN'}. Las bases marcadas en rojo ya no son válidas.` : ''));
+    renderLab();
+  }));
+  document.querySelectorAll('input[name="strands"]').forEach(r => r.addEventListener('change', () => {
+    state.lab.strands = Number(r.value);
+    state.lab.comp = state.lab.seq.map(() => null);
+    const rna = state.lab.sugar === 'ribosa';
+    feedback($('#lab-feedback'), 'info', r.value === '2' ? 'Modo bicatenario' : 'Modo monocatenario',
+      r.value === '2'
+        ? (rna ? 'El ARN de doble hebra existe en algunos virus (como el rotavirus) y en el ARN de interferencia, pero en la célula el ARN suele ser <strong>monocatenario</strong>.'
+               : 'El ADN celular forma una <strong>doble hélice</strong> de dos hebras antiparalelas unidas por puentes de hidrógeno entre bases complementarias.')
+        : (rna ? 'El ARN mensajero es <strong>monocatenario</strong>: así el ribosoma puede leer sus codones.'
+               : 'El ADN de una sola hebra aparece de forma transitoria al replicarse o en algunos virus, pero el ADN celular es <strong>bicatenario</strong>.'));
+    renderLab();
+  }));
+  $('#lab-undo').addEventListener('click', () => { state.lab.seq.pop(); state.lab.comp.pop(); renderLab(); });
+  $('#lab-clear').addEventListener('click', () => { state.lab.seq = []; state.lab.comp = []; $('#lab-feedback').innerHTML = ''; renderLab(); });
+  $('#lab-random').addEventListener('click', () => {
+    const pool = state.lab.sugar === 'ribosa' ? 'AUGC' : 'ATGC';
+    state.lab.seq = Array.from({ length: 8 }, () => pool[Math.floor(Math.random() * 4)]);
+    state.lab.comp = state.lab.seq.map(() => null);
+    feedback($('#lab-feedback'), 'info', 'Secuencia aleatoria válida generada', 'Observa cómo cambian los puentes de hidrógeno y el contenido G+C. Prueba a modificar la hebra inferior.');
+    renderLab();
+  });
+  bindNucleotides($('#lab-svg'), (strand, i) => { if (strand === 'bottom') labCycleBottom(i); });
+}
+
+/* =====================================================================================
+   9. NIVEL 1 · IDENTIFICACIÓN DE COMPONENTES ERRÓNEOS
+   Puntos: 20 al primer intento, 12 al segundo, 6 después (nunca se restan puntos).
+   ===================================================================================== */
+const l1Points = attempts => attempts === 0 ? 20 : attempts === 1 ? 12 : 6;
+
+function renderL1() {
+  const root = $('#l1-root');
+  state.l1.i = state.l1.solved ? state.l1.i : firstPending(L1_ROUNDS);
+  if (state.l1.i >= L1_ROUNDS.length) return renderLevelComplete(root, 'Nivel 1', 'detective', 'l2', 'Ir al Nivel 2 ▶');
+  const r = L1_ROUNDS[state.l1.i];
+  const solved = state.l1.solved;
+  const marks = {};
+  if (solved && r.target.kind === 'base') marks[r.target.strand + '-' + r.target.i] = 'error';
+  const chip = (kind, text) => {
+    const isErr = solved && r.target.kind === kind;
+    return `<button type="button" data-l1="${kind}" ${solved ? 'disabled' : ''}
+      class="rounded-xl border-2 px-4 py-2 text-sm font-bold ${isErr ? 'border-rose-400 bg-rose-950' : 'border-slate-600 bg-slate-800 hover:border-cyan-400'}">${text}</button>`;
+  };
+  root.innerHTML = `
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-slate-400">Muestra <strong class="text-slate-100">${state.l1.i + 1}</strong> de ${L1_ROUNDS.length}</p>
+        <p class="text-xs text-amber-300" id="l1-value">Valor: ${l1Points(state.l1.attempts)} pts</p>
+      </div>
+      <h3 class="mt-1 text-lg font-bold">Etiqueta: ${r.label} <span class="ml-1 rounded bg-slate-800 px-2 py-0.5 text-xs ${r.type === 'ADN' ? 'text-cyan-300' : 'text-pink-300'}">Debe ser ${r.type}</span></h3>
+      <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Componentes generales de la muestra">
+        ${chip('sugar', `Azúcar: ${r.sugar}`)}
+        ${chip('strands', `Hebras: ${r.strands === 2 ? '2 (bicatenaria)' : '1 (monocatenaria)'}`)}
+      </div>
+      <div id="l1-svg" class="scroll-x mt-3 rounded-xl bg-slate-950 p-2">${strandSVG({
+        top: [...r.top], bottom: r.bottom ? [...r.bottom] : null, sugarTop: r.sugar, sugarBottom: r.sugar,
+        clickable: solved ? 'none' : 'all', marks, showMismatch: solved,
+        ariaLabel: `Muestra ${r.top}${r.bottom ? ' con hebra complementaria ' + r.bottom : ''}`
+      })}</div>
+      <p class="mt-2 text-xs text-slate-400">Las bases también son componentes: haz clic sobre la que creas errónea.</p>
+    </div>
+    <div id="l1-feedback" class="mt-4" role="status" aria-live="polite"></div>
+    <div class="mt-3 flex flex-wrap gap-2">
+      ${solved ? `<button type="button" id="l1-next" class="rounded-xl bg-cyan-400 px-5 py-2 font-black text-slate-950 hover:bg-cyan-300">${state.l1.i + 1 < L1_ROUNDS.length ? 'Siguiente muestra ▶' : 'Ver resultados ▶'}</button>` : ''}
+    </div>`;
+
+  root.querySelectorAll('[data-l1]').forEach(btn => btn.addEventListener('click', () => l1Answer(btn.dataset.l1)));
+  bindNucleotides($('#l1-svg'), (strand, i) => l1Answer('base', strand, i));
+  if (solved) {
+    feedback($('#l1-feedback'), 'ok', '¡Componente erróneo identificado!', r.why);
+    $('#l1-next').addEventListener('click', () => { state.l1.solved = false; state.l1.attempts = 0; renderL1(); $('#l1-root').scrollIntoView({ block: 'nearest' }); });
+  }
+}
+
+/** Explica por qué un componente que el estudiante señaló SÍ es correcto. */
+function l1ExplainCorrect(r, kind, strand, i) {
+  if (kind === 'sugar') {
+    return r.type === 'ADN'
+      ? 'La <strong>desoxirribosa</strong> es correcta: el ADN carece del –OH en el carbono 2′, lo que lo hace estable para guardar información.'
+      : 'La <strong>ribosa</strong> es correcta: todo ARN lleva ribosa, con un –OH en el carbono 2′.';
+  }
+  if (kind === 'strands') {
+    return r.type === 'ADN'
+      ? 'Correcto para ADN: es <strong>bicatenario</strong>, con dos hebras antiparalelas en doble hélice.'
+      : 'Correcto para ARN: es <strong>monocatenario</strong>, una sola cadena que puede plegarse sobre sí misma.';
+  }
+  const seq = strand === 'top' ? r.top : r.bottom;
+  const b = seq[i], B = BASES[b];
+  const t = r.target;
+  if (t.kind === 'base' && r.strands === 2 && t.i === i && t.strand !== strand) {
+    return `¡Muy cerca! El problema está en <strong>este par</strong>, pero ${B.name} (${b}) es una base válida en el ${r.type}. Revisa su compañera en la hebra opuesta.`;
+  }
+  let msg = `${B.name} (${b}) es una ${B.type} válida en el ${r.type}`;
+  if (r.strands === 2) {
+    const other = (strand === 'top' ? r.bottom : r.top)[i];
+    const h = hBonds(b, other);
+    if (h) msg += ` y se aparea correctamente con ${BASES[other].name} (${other}) mediante ${h} puentes de hidrógeno`;
+  }
+  return msg + '. Sigue buscando.';
+}
+
+function l1Answer(kind, strand, i) {
+  if (state.l1.solved) return;
+  const r = L1_ROUNDS[state.l1.i], t = r.target;
+  const correct = kind === t.kind && (kind !== 'base' || (strand === t.strand && i === t.i));
+  if (correct) {
+    const pts = l1Points(state.l1.attempts);
+    state.l1.solved = true;
+    completeTask(r.id, pts, 'Nivel 1');
+    renderL1();
+    return;
+  }
+  state.l1.attempts++;
+  state.errors.l1++;
+  save();
+  const extra = state.l1.attempts >= 2 ? `<p class="mt-2 text-amber-200"><strong>Pista:</strong> ${r.hint}</p>` : '';
+  feedback($('#l1-feedback'), 'info', 'Ese componente está bien', l1ExplainCorrect(r, kind, strand, i) + extra);
+  const v = $('#l1-value');
+  if (v) v.textContent = `Valor: ${l1Points(state.l1.attempts)} pts`;
+}
+
+/* =====================================================================================
+   10. NIVEL 2 · TRANSCRIPCIÓN GUIADA
+   Puntos: +5 por base correcta, +20 al completar el gen, +10 extra si fue sin errores.
+   ===================================================================================== */
+function renderL2() {
+  const root = $('#l2-root');
+  if (!state.l2.solved) state.l2.i = firstPending(L2_ROUNDS);
+  if (state.l2.i >= L2_ROUNDS.length) return renderLevelComplete(root, 'Nivel 2', 'transcriptor', 'l3', 'Ir al Nivel 3 ▶');
+  const r = L2_ROUNDS[state.l2.i];
+  const tpl = [...r.template];
+  const built = state.l2.built;
+  const bottom = tpl.map((_, k) => built[k] || null);
+  const pos = built.length;
+  const done = state.l2.solved;
+  root.innerHTML = `
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-slate-400">Gen <strong class="text-slate-100">${state.l2.i + 1}</strong> de ${L2_ROUNDS.length} · ${r.context}</p>
+        <p class="text-xs text-slate-400">Posición ${Math.min(pos + 1, tpl.length)} de ${tpl.length}</p>
+      </div>
+      <div class="mt-2 grid gap-1 text-xs text-slate-300 sm:grid-cols-2">
+        <p><span class="font-bold text-cyan-300">Arriba:</span> hebra molde de ADN (desoxirribosa), leída 3′→5′.</p>
+        <p><span class="font-bold text-pink-300">Abajo:</span> ARN mensajero (ribosa) sintetizado 5′→3′.</p>
+      </div>
+      <div class="scroll-x mt-3 rounded-xl bg-slate-950 p-2">${strandSVG({
+        top: tpl, bottom, sugarTop: 'desoxirribosa', sugarBottom: 'ribosa',
+        labelsTop: ['3′', '5′'], labelsBottom: ['5′', '3′'], clickable: 'none', next: done ? -1 : pos,
+        ariaLabel: `Molde ${r.template}; ARN construido: ${built.join('') || 'ninguno'}`
+      })}</div>
+      ${done ? '' : `
+      <p class="mt-3 text-sm">Base del molde en la posición ${pos + 1}: <strong class="text-lg">${BASES[tpl[pos]].name} (${tpl[pos]})</strong>. ¿Qué ribonucleótido colocas?</p>
+      <div class="mt-2 grid grid-cols-5 gap-2 max-w-md" role="group" aria-label="Ribonucleótidos disponibles">
+        ${['A', 'U', 'G', 'C', 'T'].map(b => `<button type="button" data-l2="${b}" class="rounded-xl py-2 text-xl font-black text-white hover:brightness-110 active:scale-95" style="background:${BASES[b].color}" aria-label="Colocar ${BASES[b].name} (${b})">${b}</button>`).join('')}
+      </div>`}
+    </div>
+    <div id="l2-feedback" class="mt-4" role="status" aria-live="polite"></div>
+    <div id="l2-result" class="mt-4"></div>`;
+  root.querySelectorAll('[data-l2]').forEach(b => b.addEventListener('click', () => l2Place(b.dataset.l2)));
+  if (done) showL2Result(r);
+}
+
+function l2Place(b) {
+  const r = L2_ROUNDS[state.l2.i];
+  const pos = state.l2.built.length;
+  const t = r.template[pos];
+  const correct = complement(t, true);
+  const fb = () => $('#l2-feedback');
+  if (b === correct) {
+    state.l2.built.push(b);
+    state.score += 5; updateHUD(); save();
+    if (state.l2.built.length === r.template.length) {
+      state.l2.solved = true;
+      const bonus = state.l2.roundErrors === 0 ? 10 : 0;
+      completeTask(r.id, 20 + bonus, bonus ? 'Gen transcrito sin errores' : 'Gen transcrito');
+      renderL2();
+      return;
+    }
+    renderL2();
+    feedback(fb(), 'ok', `${t} del molde → ${b} en el ARN (+5)`,
+      `${BASES[t].name} y ${BASES[b].name} son complementarias (${hBonds(t, b)} puentes de H). La polimerasa avanza al siguiente nucleótido.`);
+    return;
+  }
+  state.l2.roundErrors++;
+  state.errors.l2++;
+  save();
+  let msg;
+  if (b === 'T') {
+    msg = `El ARN <strong>no contiene timina</strong>. Frente a una adenina del molde, la ARN polimerasa incorpora <strong>uracilo (U)</strong>. ${t === 'A' ? 'Tu idea de complementariedad es correcta, ¡solo cambia la base del ARN!' : ''}`;
+  } else {
+    msg = `Frente a ${BASES[t].name} (${t}) del molde, la polimerasa coloca <strong>${BASES[correct].name} (${correct})</strong>. ${BASES[b].name} (${b}) no forma puentes de hidrógeno estables con ${t}. Recuerda: A↔U, T↔A, G↔C, C↔G.`;
+  }
+  feedback(fb(), 'err', 'Ese ribonucleótido no es complementario', msg);
+}
+
+function showL2Result(r) {
+  const mrna = r.template.split('').map(b => complement(b, true)).join('');
+  const prot = translate(mrna);
+  feedback($('#l2-feedback'), 'ok', '¡Transcripción completada!',
+    `El ARNm <strong>5′-${mrna}-3′</strong> es complementario al molde y tiene la misma secuencia que la hebra codificante del ADN, pero con <strong>U en lugar de T</strong>. Ahora saldrá del núcleo por los poros nucleares hacia un ribosoma, donde se traducirá en grupos de tres bases (codones).`);
+  $('#l2-result').innerHTML = `
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <h3 class="font-bold text-amber-300">Del ARNm a la proteína (vista previa de la traducción)</h3>
+      <ol class="mt-3 flex flex-wrap gap-2" aria-label="Codones y aminoácidos">
+        ${prot.map(p => `<li class="rounded-xl border ${p.aa === '*' ? 'border-rose-600' : 'border-slate-700'} bg-slate-950 px-3 py-2 text-center">
+          <span class="font-mono font-black tracking-widest">${p.codon}</span><br><span class="text-xs text-slate-300">${AA_NAMES[p.aa]}${p.codon === 'AUG' ? ' · inicio' : ''}</span></li>`).join('')}
+      </ol>
+      <p class="mt-3 text-xs text-slate-400">AUG es el codón de inicio (metionina). UAA, UAG y UGA son codones de parada: no codifican aminoácido.</p>
+      <button type="button" id="l2-next" class="mt-4 rounded-xl bg-cyan-400 px-5 py-2 font-black text-slate-950 hover:bg-cyan-300">${state.l2.i + 1 < L2_ROUNDS.length ? 'Siguiente gen ▶' : 'Ver resultados ▶'}</button>
+    </div>`;
+  $('#l2-next').addEventListener('click', () => {
+    state.l2 = { i: state.l2.i + 1, built: [], roundErrors: 0, solved: false };
+    renderL2();
+  });
+}
+
+/* =====================================================================================
+   11. NIVEL 3 · DIAGNÓSTICO DE MUTACIONES Y ANOMALÍAS
+   Puntos: 25 al primer intento, 15 al segundo, 8 después.
+   ===================================================================================== */
+const l3Points = a => a === 0 ? 25 : a === 1 ? 15 : 8;
+
+function tiles(seq, highlight) {
+  return [...seq].map((b, k) => {
+    const hl = highlight && highlight.has(k);
+    return `<span class="tile ${hl ? 'ring-4 ring-rose-400' : ''}" style="background:${BASES[b].color}" title="${BASES[b].name}">${b}</span>${(k + 1) % 3 === 0 ? '<span class="inline-block w-2"></span>' : ''}`;
+  }).join('');
+}
+/** Posiciones que difieren entre referencia y muestra (para indels, desde la primera diferencia). */
+function diffPositions(ref, smp, answer) {
+  const s = new Set();
+  if (answer === 'insercion' || answer === 'delecion') {
+    let k = 0; while (k < Math.min(ref.length, smp.length) && ref[k] === smp[k]) k++;
+    const extra = Math.abs(ref.length - smp.length);
+    if (answer === 'insercion') for (let j = k; j < k + extra; j++) s.add(j);
+    else s.add(k); // en la muestra, señala el punto donde faltan bases
+  } else {
+    for (let k = 0; k < Math.min(ref.length, smp.length); k++) if (ref[k] !== smp[k]) s.add(k);
+  }
+  return s;
+}
+
+function renderL3() {
+  const root = $('#l3-root');
+  if (!state.l3.solved) state.l3.i = firstPending(L3_CASES);
+  if (state.l3.i >= L3_CASES.length) return renderLevelComplete(root, 'Nivel 3', 'diagnostico', 'badges', 'Ver mis insignias ▶');
+  const c = L3_CASES[state.l3.i];
+  const solved = state.l3.solved;
+  let display;
+  if (c.mismatch) {
+    const marks = solved ? { 'bottom-2': 'error' } : {};
+    display = `
+      <p class="text-xs font-bold text-emerald-300">REFERENCIA (doble hebra)</p>
+      <div class="scroll-x rounded-xl bg-slate-950 p-2">${strandSVG({ top: [...c.ref], bottom: [...c.refBottom], sugarTop: 'desoxirribosa', sugarBottom: 'desoxirribosa', clickable: 'none', showMismatch: true, ariaLabel: 'Referencia ' + c.ref + ' / ' + c.refBottom })}</div>
+      <p class="mt-3 text-xs font-bold text-rose-300">MUESTRA (doble hebra)</p>
+      <div class="scroll-x rounded-xl bg-slate-950 p-2">${strandSVG({ top: [...c.sample], bottom: [...c.sampleBottom], sugarTop: 'desoxirribosa', sugarBottom: 'desoxirribosa', clickable: 'none', showMismatch: solved, marks, ariaLabel: 'Muestra ' + c.sample + ' / ' + c.sampleBottom })}</div>`;
+  } else {
+    const hl = solved ? diffPositions(c.ref, c.sample, c.answer) : null;
+    display = `
+      <div class="space-y-3">
+        <div><p class="text-xs font-bold text-emerald-300">REFERENCIA 5′→3′ <span class="font-normal text-slate-400">(${c.ref.length} nt)</span></p>
+          <div class="scroll-x mt-1 whitespace-nowrap" aria-label="Referencia ${[...c.ref].join(' ')}">${tiles(c.ref)}</div></div>
+        <div><p class="text-xs font-bold text-rose-300">MUESTRA 5′→3′ <span class="font-normal text-slate-400">(${c.sample.length} nt)</span></p>
+          <div class="scroll-x mt-1 whitespace-nowrap" aria-label="Muestra ${[...c.sample].join(' ')}">${tiles(c.sample, hl)}</div></div>
+      </div>`;
+  }
+  root.innerHTML = `
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-slate-400">Caso <strong class="text-slate-100">${state.l3.i + 1}</strong> de ${L3_CASES.length}</p>
+        <p class="text-xs text-amber-300" id="l3-value">Valor: ${l3Points(state.l3.attempts)} pts</p>
+      </div>
+      <h3 class="mt-1 text-lg font-bold">${c.title}</h3>
+      <p class="text-sm text-slate-400">${c.gene}</p>
+      <div class="mt-4">${display}</div>
+    </div>
+    <fieldset class="mt-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <legend class="px-2 font-bold text-cyan-300">Tu diagnóstico</legend>
+      <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        ${L3_OPTIONS.map(o => {
+          const chosenOk = solved && o.id === c.answer;
+          return `<button type="button" data-l3="${o.id}" ${solved ? 'disabled' : ''}
+            class="rounded-xl border-2 p-3 text-left ${chosenOk ? 'border-emerald-400 bg-emerald-950' : 'border-slate-700 bg-slate-800 hover:border-cyan-400'}">
+            <span class="block font-bold">${o.label}</span><span class="block text-xs text-slate-300">${o.desc}</span></button>`;
+        }).join('')}
+      </div>
+    </fieldset>
+    <div id="l3-feedback" class="mt-4" role="status" aria-live="polite"></div>
+    <div id="l3-result" class="mt-4"></div>`;
+  root.querySelectorAll('[data-l3]').forEach(b => b.addEventListener('click', () => l3Answer(b.dataset.l3)));
+  if (solved) showL3Result(c);
+}
+
+/** Retroalimentación específica cuando el diagnóstico elegido no es correcto. */
+function l3WrongMsg(c, chosen) {
+  const a = c.ref.length, b = c.sample.length;
+  const lens = `La referencia tiene <strong>${a} nt</strong> y la muestra <strong>${b} nt</strong>.`;
+  switch (chosen) {
+    case 'sustitucion':
+      if (a !== b) return `Una sustitución no cambia la longitud. ${lens}`;
+      if (c.answer === 'estructural') return 'Hay un cambio, pero observa <strong>qué tipo</strong> de componente aparece o cómo se aparean las hebras: ¿es químicamente posible en el ADN?';
+      return 'Compara base a base: no hay ninguna posición en la que una base haya sido reemplazada por otra.';
+    case 'insercion':
+      return b > a ? 'La muestra es más larga, pero revisa de nuevo.' : `Una inserción haría la muestra más larga. ${lens}`;
+    case 'delecion':
+      return b < a ? 'La muestra es más corta, pero revisa de nuevo.' : `Una deleción haría la muestra más corta. ${lens}`;
+    case 'estructural':
+      return 'Todas las bases de la muestra (A, T, G, C) son propias del ADN y no hay pares mal formados. El cambio está en la <strong>secuencia</strong>, no en la química de los componentes.';
+    case 'ninguna':
+      return c.mismatch
+        ? 'La hebra superior es igual, pero mira la <strong>hebra inferior</strong>: ¿todos los pares son complementarios?'
+        : 'Compara posición por posición, de tres en tres: hay al menos una diferencia. ' + lens;
+  }
+  return '';
+}
+
+function l3Answer(choice) {
+  if (state.l3.solved) return;
+  const c = L3_CASES[state.l3.i];
+  if (choice === c.answer) {
+    state.l3.solved = true;
+    completeTask(c.id, l3Points(state.l3.attempts), 'Diagnóstico correcto');
+    renderL3();
+    return;
+  }
+  state.l3.attempts++;
+  state.errors.l3++;
+  save();
+  const opt = L3_OPTIONS.find(o => o.id === choice);
+  feedback($('#l3-feedback'), 'err', `No es "${opt.label}"`, l3WrongMsg(c, choice) + ' ¡Inténtalo de nuevo!');
+  $('#l3-value').textContent = `Valor: ${l3Points(state.l3.attempts)} pts`;
+}
+
+function showL3Result(c) {
+  feedback($('#l3-feedback'), 'ok', `Diagnóstico correcto: ${L3_OPTIONS.find(o => o.id === c.answer).label}`, c.why);
+  let protein = '';
+  if (!c.mismatch && c.answer !== 'estructural') {
+    const fmt = seq => translate(seq).map(p => `<span class="rounded bg-slate-800 px-2 py-1 ${p.aa === '*' ? 'text-rose-300' : ''}">${AA_NAMES[p.aa].replace(/ \(.+\)/, '')}</span>`).join(' ');
+    protein = `<h3 class="font-bold text-amber-300">Efecto en la proteína</h3>
+      <p class="mt-2 text-xs text-slate-400">Referencia:</p><div class="mt-1 flex flex-wrap gap-1 text-sm">${fmt(c.ref)}</div>
+      <p class="mt-2 text-xs text-slate-400">Muestra:</p><div class="mt-1 flex flex-wrap gap-1 text-sm">${fmt(c.sample)}</div>`;
+  }
+  $('#l3-result').innerHTML = `<div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">${protein}
+    <button type="button" id="l3-next" class="${protein ? 'mt-4 ' : ''}rounded-xl bg-cyan-400 px-5 py-2 font-black text-slate-950 hover:bg-cyan-300">${state.l3.i + 1 < L3_CASES.length ? 'Siguiente caso ▶' : 'Ver resultados ▶'}</button></div>`;
+  $('#l3-next').addEventListener('click', () => { state.l3 = { i: state.l3.i + 1, attempts: 0, solved: false }; renderL3(); });
+}
+
+/* Pantalla de nivel completado (común a los tres niveles) */
+function renderLevelComplete(root, name, badgeId, nextTab, nextLabel) {
+  const b = BADGES.find(x => x.id === badgeId);
+  root.innerHTML = `
+    <div class="pop rounded-3xl border border-emerald-700 bg-emerald-950/40 p-6 text-center">
+      <p class="text-5xl" aria-hidden="true">${b.icon}</p>
+      <h3 class="mt-2 text-2xl font-black text-emerald-300">¡${name} completado!</h3>
+      <p class="mt-1 text-slate-200">Insignia: <strong>${b.name}</strong> — ${b.desc}</p>
+      <button type="button" class="mt-5 rounded-xl bg-cyan-400 px-5 py-2 font-black text-slate-950 hover:bg-cyan-300" data-goto="${nextTab}">${nextLabel}</button>
+    </div>`;
+  root.querySelector('[data-goto]').addEventListener('click', e => selectTab(e.currentTarget.dataset.goto, true));
+}
+
+/* =====================================================================================
+   12. TECLADO GLOBAL (atajos solo en Laboratorio y Nivel 2; se ignoran en campos de texto)
+   ===================================================================================== */
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest('input, textarea, select, dialog[open]')) return;
+  const k = e.key.toUpperCase();
+  if (state.activeTab === 'lab') {
+    if ('ATGCU'.includes(k) && k.length === 1) labAdd(k);
+    else if (e.key === 'Backspace') { e.preventDefault(); state.lab.seq.pop(); state.lab.comp.pop(); renderLab(); }
+  } else if (state.activeTab === 'l2' && !state.l2.solved && 'ATGCU'.includes(k) && k.length === 1) {
+    l2Place(k);
+  }
+});
+
+/* =====================================================================================
+   13. ARRANQUE
+   ===================================================================================== */
+function openIntro() {
+  const d = $('#intro');
+  $('#agent-name').value = state.name;
+  if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+}
+$('#intro-form').addEventListener('submit', () => {
+  state.name = $('#agent-name').value.trim().slice(0, 30);
+  save(); updateHUD();
+  toast(`🚀 Misión aceptada${state.name ? ', agente <strong>' + esc(state.name) + '</strong>' : ''}. Empieza en el Laboratorio.`);
+});
+$('#btn-briefing').addEventListener('click', openIntro);
+$('#btn-reset').addEventListener('click', () => {
+  if (!confirm('¿Seguro que quieres borrar puntaje, insignias y progreso?')) return;
+  try { localStorage.removeItem(CONFIG.storageKey); } catch (e) {}
+  location.reload();
+});
+
+const hadProgress = load();
+initLab();
+renderLab();
+renderBadges();
+updateHUD();
+selectTab('lab');
+if (!hadProgress) openIntro();
+</script>
+</body>
+</html>
